@@ -11,12 +11,13 @@ import axios from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 
 const Profile = () => {
-  const { user, token } = useContext(AuthContext);
+  const { user, token, updateUser } = useContext(AuthContext);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isVisible, setIsVisible] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState(user || {});
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
@@ -61,21 +62,48 @@ const Profile = () => {
   };
 
   const handleImageChange = (e) => {
-    setImageFile(e.target.files[0]);
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Image must be less than 5MB");
+        return;
+      }
+
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      if (!allowedTypes.includes(file.type)) {
+        setError("Only JPEG and PNG images are allowed");
+        return;
+      }
+
+      setImageFile(file);
+      setError("");
+    }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
+
     try {
+      console.log("Saving profile...", profile);
+
       const formData = new FormData();
-      formData.set("name", profile.name || "");
-      formData.set("location", profile.location || "");
-      formData.set("phone", profile.phone || "");
-      formData.set("address", profile.address || "");
-      formData.set("skills", profile.skills?.join(",") || "");
-      formData.set("bio", profile.bio || "");
+      if (profile.name) formData.set("name", profile.name);
+      if (profile.location) formData.set("location", profile.location);
+      if (profile.phone) formData.set("phone", profile.phone);
+      if (profile.address) formData.set("address", profile.address);
+      if (profile.bio) formData.set("bio", profile.bio);
+      if (profile.skills && Array.isArray(profile.skills)) {
+        formData.set("skills", profile.skills.join(","));
+      }
       if (imageFile) {
         formData.append("image", imageFile);
+      }
+
+      console.log("FormData contents:");
+      for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
       }
 
       const response = await axios.put("/api/auth/update", formData, {
@@ -84,14 +112,48 @@ const Profile = () => {
           "Content-Type": "multipart/form-data",
         },
       });
-      setProfile(response.data);
-      setImageFile(null); // Reset file input
+
+      console.log("Update response:", response.data);
+
+      // Fetch updated profile to ensure consistency
+      const profileResponse = await axios.get("/api/auth/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log("Fetched profile after update:", profileResponse.data);
+
+      setProfile(profileResponse.data);
+      if (updateUser) {
+        console.log("Updating context with:", profileResponse.data);
+        updateUser(profileResponse.data);
+      }
+
+      setImageFile(null);
       setIsEditing(false);
       setError("");
+      console.log("Profile updated successfully!");
     } catch (err) {
-      setError("Failed to save profile. Please try again.");
       console.error("Save profile error:", err);
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.response?.status === 401) {
+        setError("Session expired. Please log in again.");
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+      } else if (err.response?.status === 413) {
+        setError("File too large. Please choose a smaller image.");
+      } else {
+        setError("Failed to save profile. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    setProfile(user || {});
+    setImageFile(null);
+    setIsEditing(false);
+    setError("");
   };
 
   if (!user) {
@@ -119,9 +181,12 @@ const Profile = () => {
             clients.
           </p>
 
-          {error && <p className="text-red-400 text-center">{error}</p>}
+          {error && (
+            <div className="bg-red-900/20 border border-red-500 rounded-xl p-4 mb-6">
+              <p className="text-red-400 text-center">{error}</p>
+            </div>
+          )}
 
-          {/* Profile Information */}
           <div
             className="bg-gray-800/50 border border-gray-700 rounded-3xl p-8 mb-8"
             id="profile-info"
@@ -131,13 +196,26 @@ const Profile = () => {
               <h3 className="text-2xl font-bold text-white">
                 Personal Information
               </h3>
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
-              >
-                {isEditing ? <Save /> : <Edit />}
-              </button>
+              <div className="flex gap-2">
+                {isEditing && (
+                  <button
+                    onClick={handleCancel}
+                    className="bg-gray-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-gray-700 transition-all"
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
+                  disabled={loading}
+                >
+                  {isEditing ? <Save /> : <Edit />}
+                </button>
+              </div>
             </div>
+
             <div className="flex flex-col md:flex-row gap-8">
               <div className="flex flex-col items-center md:items-start">
                 <img
@@ -146,27 +224,37 @@ const Profile = () => {
                       ? `http://localhost:5000${profile.image}`
                       : "https://picsum.photos/seed/user1/200/200"
                   }
-                  alt={profile.name}
+                  alt={profile.name || "Profile"}
                   className="w-32 h-32 rounded-full object-cover border-2 border-yellow-400 mb-4"
                 />
                 {isEditing ? (
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={handleImageChange}
-                    className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                  />
+                  <div className="w-full">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      onChange={handleImageChange}
+                      className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
+                    />
+                    {imageFile && (
+                      <p className="text-green-400 text-sm mt-2">
+                        New image selected: {imageFile.name}
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <h3 className="text-xl font-bold text-white mb-2">
                     {profile.name || "Not set"}
                   </h3>
                 )}
               </div>
+
               <div className="flex-1">
                 {isEditing ? (
                   <form onSubmit={handleSave} className="space-y-4">
                     <div>
-                      <label className="text-gray-300 text-sm">Full Name</label>
+                      <label className="text-gray-300 text-sm block mb-1">
+                        Full Name
+                      </label>
                       <input
                         type="text"
                         name="name"
@@ -177,40 +265,43 @@ const Profile = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm">Location</label>
+                      <label className="text-gray-300 text-sm block mb-1">
+                        Location
+                      </label>
                       <input
                         type="text"
                         name="location"
                         value={profile.location || ""}
                         onChange={handleInputChange}
                         className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm">Phone</label>
+                      <label className="text-gray-300 text-sm block mb-1">
+                        Phone
+                      </label>
                       <input
                         type="text"
                         name="phone"
                         value={profile.phone || ""}
                         onChange={handleInputChange}
                         className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm">Address</label>
+                      <label className="text-gray-300 text-sm block mb-1">
+                        Address
+                      </label>
                       <input
                         type="text"
                         name="address"
                         value={profile.address || ""}
                         onChange={handleInputChange}
                         className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm">
+                      <label className="text-gray-300 text-sm block mb-1">
                         Skills (comma-separated)
                       </label>
                       <input
@@ -219,25 +310,28 @@ const Profile = () => {
                         value={profile.skills?.join(", ") || ""}
                         onChange={handleSkillsChange}
                         className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                        required
+                        placeholder="e.g. Plumbing, Electrical, Carpentry"
                       />
                     </div>
                     <div>
-                      <label className="text-gray-300 text-sm">Bio</label>
+                      <label className="text-gray-300 text-sm block mb-1">
+                        Bio
+                      </label>
                       <textarea
                         name="bio"
                         value={profile.bio || ""}
                         onChange={handleInputChange}
-                        className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
+                        className="w-full pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all resize-none"
                         rows="4"
-                        required
+                        placeholder="Tell clients about your experience and expertise..."
                       />
                     </div>
                     <button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-all"
+                      className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={loading}
                     >
-                      Save Changes
+                      {loading ? "Saving..." : "Save Changes"}
                     </button>
                   </form>
                 ) : (
@@ -255,14 +349,18 @@ const Profile = () => {
                       <span>{profile.address || "Not set"}</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {profile.skills?.map((skill, i) => (
-                        <span
-                          key={i}
-                          className="bg-gray-800/50 text-gray-300 text-sm px-3 py-1 rounded-full"
-                        >
-                          {skill}
-                        </span>
-                      )) || <span>No skills listed</span>}
+                      {profile.skills?.length > 0 ? (
+                        profile.skills.map((skill, i) => (
+                          <span
+                            key={i}
+                            className="bg-gray-800/50 text-gray-300 text-sm px-3 py-1 rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-gray-500">No skills listed</span>
+                      )}
                     </div>
                     <p className="text-gray-300">
                       {profile.bio || "No bio provided"}
@@ -277,7 +375,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Client Ratings */}
           <div
             className="bg-gray-800/50 border border-gray-700 rounded-3xl p-8"
             id="client-ratings"
@@ -286,13 +383,13 @@ const Profile = () => {
             <h3 className="text-2xl font-bold text-white mb-6">
               Client Ratings
             </h3>
-            {profile.ratings?.length === 0 ? (
+            {!profile.ratings || profile.ratings.length === 0 ? (
               <p className="text-gray-400">
                 No ratings yet. Complete jobs to earn reviews!
               </p>
             ) : (
               <div className="space-y-6">
-                {profile.ratings?.map((rating) => (
+                {profile.ratings.map((rating) => (
                   <div
                     key={rating._id || rating.id}
                     className="border-b border-gray-700 pb-4"

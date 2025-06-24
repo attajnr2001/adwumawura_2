@@ -5,7 +5,6 @@ import {
   CheckCircle,
   Phone,
   LocationOn,
-  Reply,
 } from "@mui/icons-material";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -19,7 +18,6 @@ const Dashboard = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [replies, setReplies] = useState({});
 
   useEffect(() => {
     const handleMouseMove = (e) =>
@@ -54,12 +52,7 @@ const Dashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log("Received messages:", messagesResponse.data);
-        setMessages(
-          messagesResponse.data.map((msg) => ({
-            ...msg,
-            replied: false,
-          }))
-        );
+        setMessages(messagesResponse.data);
 
         setError("");
       } catch (err) {
@@ -73,50 +66,6 @@ const Dashboard = () => {
     };
     fetchData();
   }, [user, token, navigate]);
-
-  const handleReplyMessage = async (e, messageId, senderId) => {
-    e.preventDefault();
-    if (!user || !token) {
-      setError("Please log in to reply.");
-      navigate("/login");
-      return;
-    }
-
-    const replyText = replies[messageId];
-    if (!replyText?.trim()) {
-      setError("Reply cannot be empty.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await axios.post(
-        "/api/messages/",
-        {
-          recipientId: senderId,
-          content: replyText,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg._id === messageId ? { ...msg, replied: true } : msg
-        )
-      );
-      setReplies((prev) => ({ ...prev, [messageId]: "" }));
-      setError("");
-      console.log(`Replied to message ${messageId}: ${replyText}`);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to send reply.");
-      console.error("Reply error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReplyChange = (messageId, text) => {
-    setReplies((prev) => ({ ...prev, [messageId]: text }));
-  };
 
   if (!user) {
     return (
@@ -145,8 +94,7 @@ const Dashboard = () => {
             </span>
           </h2>
           <p className="text-lg text-gray-400 text-center max-w-3xl mx-auto mb-12">
-            Manage your job postings, review applicants, and respond to client
-            messages.
+            View your job postings and messages from clients.
           </p>
 
           {error && <p className="text-red-400 text-center mb-8">{error}</p>}
@@ -185,7 +133,7 @@ const Dashboard = () => {
                     key={job._id}
                     to={`/user/job-applicants/${job._id}`}
                     state={{ job }}
-                    className="group relative bg-gradient-to-br from-yellow-400/10 to-orange-500/10 backdrop-blur-sm rounded-3xl p-6 border border-yellow-400/30 transition-all duration-500 hover:scale-105 cursor-pointer opacity-100"
+                    className="group relative bg-gradient-to-br from-yellow-400/10 to-orange-500/10 backdrop-blur-sm rounded-3xl p-6 border border-yellow-400/30 transition-all duration-500 hover:scale-105 cursor-pointer"
                   >
                     <div className="flex flex-col text-left">
                       <h4 className="text-xl font-bold text-white mb-2">
@@ -250,7 +198,7 @@ const Dashboard = () => {
                 {messages.map((msg) => (
                   <div
                     key={msg._id}
-                    className="bg-gray-800/50 border border-gray-700 rounded-3xl p-6 opacity-100"
+                    className="bg-gray-800/50 border border-gray-700 rounded-3xl p-6"
                   >
                     <div className="flex flex-col">
                       <div className="flex justify-between items-center mb-4">
@@ -280,37 +228,6 @@ const Dashboard = () => {
                       <p className="text-gray-300 mb-4">
                         {msg.content || "No content"}
                       </p>
-                      {msg.replied ? (
-                        <span className="text-green-400 flex items-center">
-                          <CheckCircle className="mr-1" /> Replied
-                        </span>
-                      ) : (
-                        <form
-                          onSubmit={(e) =>
-                            handleReplyMessage(e, msg._id, msg.senderId?._id)
-                          }
-                          className="flex items-center space-x-4"
-                        >
-                          <input
-                            type="text"
-                            value={replies[msg._id] || ""}
-                            onChange={(e) =>
-                              handleReplyChange(msg._id, e.target.value)
-                            }
-                            placeholder="Type your reply..."
-                            className="flex-1 pl-4 pr-4 py-2 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
-                            required
-                            disabled={loading}
-                          />
-                          <button
-                            type="submit"
-                            className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-4 py-2 rounded-xl font-bold hover:scale-105 transition-all"
-                            disabled={loading}
-                          >
-                            <Reply className="inline-block" />
-                          </button>
-                        </form>
-                      )}
                     </div>
                   </div>
                 ))}

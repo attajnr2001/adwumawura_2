@@ -109,65 +109,75 @@ const FindArtisans = () => {
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredArtisans.map((artisan) => (
-                <div
-                  key={artisan._id}
-                  className="group relative bg-gradient-to-br from-yellow-400/10 to-orange-500/10 backdrop-blur-sm rounded-3xl p-6 border border-yellow-400/30 transition-all duration-500 hover:scale-105 opacity-100"
-                >
-                  <div className="flex flex-col items-center text-center">
-                    <img
-                      src={artisan.image || "https://via.placeholder.com/200"}
-                      alt={artisan.name || "Artisan"}
-                      className="w-24 h-24 rounded-full object-cover border-2 border-yellow-400 mb-4"
-                      onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/200";
-                      }}
-                    />
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      {artisan.name || "Unknown"}
-                    </h3>
-                    <div className="flex items-center text-gray-400 mb-2">
-                      <LocationOn className="text-yellow-400 mr-1" />
-                      <span>{artisan.location || "Unknown Location"}</span>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-2 mb-4">
-                      {artisan.skills?.length > 0 ? (
-                        artisan.skills.map((skill, i) => (
-                          <span
-                            key={i}
-                            className="bg-gray-800/50 text-gray-300 text-sm px-3 py-1 rounded-full"
-                          >
-                            {skill}
+              {filteredArtisans.map((artisan) => {
+                console.log(`Artisan ${artisan.name} image:`, artisan.image); // Debug log
+                return (
+                  <div
+                    key={artisan._id}
+                    className="group relative bg-gradient-to-br from-yellow-400/10 to-orange-500/10 backdrop-blur-sm rounded-3xl p-6 border border-yellow-400/30 transition-all duration-500 hover:scale-105 opacity-100"
+                  >
+                    <div className="flex flex-col items-center text-center">
+                      <img
+                        src={
+                          artisan.image
+                            ? `http://localhost:5000${artisan.image}`
+                            : "https://via.placeholder.com/200"
+                        }
+                        alt={artisan.name || "Artisan"}
+                        className="w-24 h-24 rounded-full object-cover border-2 border-yellow-400 mb-4"
+                        onError={(e) => {
+                          console.error(
+                            `Failed to load image for ${artisan.name}: ${artisan.image}`
+                          );
+                          e.target.src = "https://via.placeholder.com/200";
+                        }}
+                      />
+                      <h3 className="text-xl font-bold text-white mb-2">
+                        {artisan.name || "Unknown"}
+                      </h3>
+                      <div className="flex items-center text-gray-400 mb-2">
+                        <LocationOn className="text-yellow-400 mr-1" />
+                        <span>{artisan.location || "Unknown Location"}</span>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2 mb-4">
+                        {artisan.skills?.length > 0 ? (
+                          artisan.skills.map((skill, i) => (
+                            <span
+                              key={i}
+                              className="bg-gray-800/50 text-gray-300 text-sm px-3 py-1 rounded-full"
+                            >
+                              {skill}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-500 text-sm">
+                            No skills listed
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-500 text-sm">
-                          No skills listed
+                        )}
+                      </div>
+                      <div className="flex items-center text-yellow-400 mb-4">
+                        <Star className="mr-1" />
+                        <span>
+                          {artisan.averageRating > 0
+                            ? artisan.averageRating.toFixed(1)
+                            : "N/A"}{" "}
+                          / 5
                         </span>
-                      )}
+                      </div>
+                      <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                        {artisan.bio || "No bio available"}
+                      </p>
+                      <Link
+                        to={`/user/artisan/${artisan._id}`}
+                        state={{ artisan }}
+                        className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-6 py-2 rounded-xl font-bold hover:scale-105 transition-all"
+                      >
+                        View Profile
+                      </Link>
                     </div>
-                    <div className="flex items-center text-yellow-400 mb-4">
-                      <Star className="mr-1" />
-                      <span>
-                        {artisan.averageRating > 0
-                          ? artisan.averageRating.toFixed(1)
-                          : "N/A"}{" "}
-                        / 5
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                      {artisan.bio || "No bio available"}
-                    </p>
-                    <Link
-                      to={`/user/artisan/${artisan._id}`}
-                      state={{ artisan }}
-                      className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-6 py-2 rounded-xl font-bold hover:scale-105 transition-all"
-                    >
-                      View Profile
-                    </Link>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {!loading && filteredArtisans.length === 0 && (
