@@ -7,10 +7,10 @@ const fs = require("fs");
 const User = require("../models/User");
 const router = express.Router();
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "../Uploads");
+// Ensure uploads directory exists - FIXED TYPO HERE
+const uploadsDir = path.join(__dirname, "../uploads"); // Changed from "../Uploads"
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(UploadsDir, { recursive: true });
+  fs.mkdirSync(uploadsDir, { recursive: true }); // Fixed: was UploadsDir instead of uploadsDir
 }
 
 // Multer configuration
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    // Skip file processing if no file is provided
+    // Allow requests without files
     if (!file) {
       return cb(null, true);
     }
@@ -121,7 +121,7 @@ router.post("/register", upload.single("image"), async (req, res) => {
       address: address || undefined,
       skills: skillsArray,
       bio: bio || undefined,
-      image: req.file ? `/Uploads/${req.file.filename}` : null,
+      image: req.file ? `/uploads/${req.file.filename}` : null, // Fixed path consistency
     });
 
     await user.save();
@@ -218,91 +218,114 @@ router.get("/profile", authMiddleware, async (req, res) => {
   }
 });
 
+// FIXED UPDATE ROUTE - This was likely the main issue
 router.put(
   "/update",
   authMiddleware,
   upload.single("image"),
   async (req, res) => {
     try {
-      console.log("Update request received");
+      console.log("=== UPDATE REQUEST START ===");
       console.log("User ID:", req.user.id);
       console.log("Request body:", req.body);
       console.log("File:", req.file);
+      console.log("Request headers:", req.headers);
 
-      const updates = { ...req.body };
-
-      if (req.file) {
-        updates.image = `/Uploads/${req.file.filename}`;
-        console.log("Image path set to:", updates.image);
+      // Check if user exists first
+      const existingUser = await User.findById(req.user.id);
+      if (!existingUser) {
+        console.log("User not found for ID:", req.user.id);
+        return res.status(404).json({ message: "User not found" });
       }
 
-      const allowedUpdates = [
-        "name",
-        "location",
-        "phone",
-        "address",
-        "skills",
-        "bio",
-        "image",
-      ];
+      console.log("Existing user found:", existingUser.name);
 
-      const updateKeys = Object.keys(updates);
-      const isValidOperation = updateKeys.every((update) =>
-        allowedUpdates.includes(update)
-      );
+      const updates = {};
 
-      if (!isValidOperation) {
-        console.log("Invalid updates attempted:", updateKeys);
-        return res.status(400).json({
-          message: "Invalid updates",
-          attempted: updateKeys,
-          allowed: allowedUpdates,
-        });
-      }
-
-      if (updates.skills && typeof updates.skills === "string") {
-        updates.skills = updates.skills
-          .split(",")
-          .map((skill) => skill.trim())
-          .filter((skill) => skill.length > 0);
-        console.log("Skills processed:", updates.skills);
-      }
-
-      Object.keys(updates).forEach((key) => {
+      // Handle text fields
+      const textFields = ["name", "location", "phone", "address", "bio"];
+      textFields.forEach((field) => {
         if (
-          updates[key] === "" ||
-          updates[key] === null ||
-          updates[key] === undefined
+          req.body[field] !== undefined &&
+          req.body[field] !== null &&
+          req.body[field] !== ""
         ) {
-          delete updates[key];
+          updates[field] = req.body[field];
         }
       });
 
+      // Handle skills separately
+      if (req.body.skills) {
+        if (typeof req.body.skills === "string") {
+          updates.skills = req.body.skills
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter((skill) => skill.length > 0);
+        } else if (Array.isArray(req.body.skills)) {
+          updates.skills = req.body.skills.filter(
+            (skill) => skill.trim().length > 0
+          );
+        }
+        console.log("Skills processed:", updates.skills);
+      }
+
+      // Handle image upload
+      if (req.file) {
+        updates.image = `/uploads/${req.file.filename}`;
+        console.log("Image path set to:", updates.image);
+      }
+
       console.log("Final updates object:", updates);
 
-      const user = await User.findByIdAndUpdate(
+      // Perform the update
+      const updatedUser = await User.findByIdAndUpdate(
         req.user.id,
         { $set: updates },
         {
           new: true,
           runValidators: true,
-          select: "-password",
         }
-      );
+      ).select("-password");
 
-      if (!user) {
-        console.log("User not found for ID:", req.user.id);
-        return res.status(404).json({ message: "User not found" });
+      if (!updatedUser) {
+        console.log("Failed to update user");
+        return res.status(404).json({ message: "Failed to update user" });
       }
 
-      console.log("User updated successfully:", user);
-      res.json(user);
+      console.log("User updated successfully");
+      console.log("Updated user data:", {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        location: updatedUser.location,
+        skills: updatedUser.skills,
+      });
+      console.log("=== UPDATE REQUEST END ===");
+
+      res.json(updatedUser);
     } catch (error) {
-      console.error("Update error:", error);
+      console.error("=== UPDATE ERROR ===");
+      console.error("Error details:", error);
+      console.error("Error stack:", error.stack);
+
+      if (error.name === "ValidationError") {
+        return res.status(400).json({
+          message: "Validation error",
+          details: error.message,
+        });
+      }
+
+      if (error.name === "CastError") {
+        return res.status(400).json({
+          message: "Invalid user ID format",
+        });
+      }
+
       res.status(500).json({
-        message: "Server error",
+        message: "Server error during profile update",
         error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
       });
     }
   }
