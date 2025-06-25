@@ -14,6 +14,7 @@ const ArtisanProfile = () => {
   const [message, setMessage] = useState("");
   const [userRating, setUserRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
   const [averageRating, setAverageRating] = useState(
     artisan.averageRating || 0
   );
@@ -45,6 +46,10 @@ const ArtisanProfile = () => {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    console.log("Artisan image path:", artisan.image); // Debug log
+  }, [artisan.image]);
+
   const handleSubmitMessage = async (e) => {
     e.preventDefault();
     if (!user || !token) {
@@ -56,23 +61,31 @@ const ArtisanProfile = () => {
       setError("Message cannot be empty.");
       return;
     }
+    if (!artisan._id) {
+      setError("Invalid recipient ID.");
+      return;
+    }
 
     setLoading(true);
     try {
-      await axios.post(
-        "/api/messages/send",
-        {
-          recipientId: artisan._id,
-          content: message,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const payload = { recipientId: artisan._id, content: message };
+      console.log("Sending message payload:", payload);
+      await axios.post("/api/messages/send", payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setMessage("");
       setError("");
       console.log("Message sent to", artisan.name);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to send message.");
-      console.error("Send message error:", err);
+      const errorMessage =
+        err.response?.data?.message || "Failed to send message.";
+      setError(errorMessage);
+      console.error("Send message error:", {
+        message: errorMessage,
+        status: err.response?.status,
+        data: err.response?.data,
+        stack: err.stack,
+      });
     } finally {
       setLoading(false);
     }
@@ -89,18 +102,30 @@ const ArtisanProfile = () => {
       setError("Please select a rating.");
       return;
     }
+    if (!user.name && !user.username) {
+      setError("User profile incomplete. Please set a name.");
+      return;
+    }
 
     setLoading(true);
     try {
+      const payload = {
+        rating: userRating,
+        client: user.name || user.username,
+        comment: comment.trim() || undefined,
+      };
+      console.log("Submitting rating payload:", payload);
+
       const response = await axios.post(
         `/api/users/rate/${artisan._id}`,
-        { rating: userRating },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setAverageRating(response.data.averageRating);
       setUserRating(0);
+      setComment("");
       setError("");
-      console.log("Rating submitted for", artisan.name, ":", userRating);
+      console.log("Rating submitted for", artisan.name, ":", payload);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit rating.");
       console.error("Submit rating error:", err);
@@ -137,9 +162,19 @@ const ArtisanProfile = () => {
             <div className="flex flex-col md:flex-row gap-8">
               <div className="flex flex-col items-center md:items-start">
                 <img
-                  src={artisan.image || "https://via.placeholder.com/200"}
+                  src={
+                    artisan.image
+                      ? `http://localhost:5000${artisan.image}`
+                      : "https://via.placeholder.com/200"
+                  }
                   alt={artisan.name || "Artisan"}
                   className="w-32 h-32 rounded-full object-cover border-2 border-yellow-400 mb-4"
+                  onError={(e) => {
+                    console.error(
+                      `Failed to load image for ${artisan.name}: ${artisan.image}`
+                    );
+                    e.target.src = "https://via.placeholder.com/200";
+                  }}
                 />
                 <h2 className="text-3xl font-bold text-white mb-2">
                   {artisan.name || "Unknown"}
@@ -179,7 +214,6 @@ const ArtisanProfile = () => {
               </div>
             </div>
 
-            {/* Rating Section */}
             <div className="mt-8">
               <h3 className="text-xl font-bold text-white mb-4">
                 Rate {artisan.name || "Artisan"}
@@ -203,6 +237,16 @@ const ArtisanProfile = () => {
                       )}
                     </button>
                   ))}
+                </div>
+                <div className="relative">
+                  <textarea
+                    placeholder="Add a comment (optional)"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="w-full pl-4 pr-4 py-3 bg-gray-900/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400 transition-all"
+                    rows="4"
+                    disabled={loading}
+                  />
                 </div>
                 <button
                   type="submit"

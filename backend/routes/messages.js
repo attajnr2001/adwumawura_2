@@ -11,7 +11,7 @@ const authMiddleware = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Fix: Set req.user to decoded object
+    req.user = decoded; // Set req.user to decoded object
     next();
   } catch (error) {
     console.error("JWT verification error:", error);
@@ -20,7 +20,7 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Send a message
-router.post("/", authMiddleware, async (req, res) => {
+router.post("/send", authMiddleware, async (req, res) => {
   try {
     const { recipientId, content } = req.body;
     if (!recipientId || !content) {
