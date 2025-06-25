@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
       const fetchUser = async () => {
         try {
           const response = await axios.get(
-            "http://localhost:5000/api/auth/profile",
+            "https://adwumawura-api.onrender.com/api/auth/profile",
             {
               headers: { Authorization: `Bearer ${token}` },
             }

@@ -70,7 +70,7 @@ const Profile = () => {
       });
       setPreviewImage(
         user.image
-          ? `http://localhost:5000${user.image}`
+          ? `https://adwumawura-api.onrender.com${user.image}`
           : "https://via.placeholder.com/200"
       );
     }

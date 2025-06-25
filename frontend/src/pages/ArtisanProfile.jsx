@@ -164,7 +164,7 @@ const ArtisanProfile = () => {
                 <img
                   src={
                     artisan.image
-                      ? `http://localhost:5000${artisan.image}`
+                      ? `https://adwumawura-api.onrender.com${artisan.image}`
                       : "https://via.placeholder.com/200"
                   }
                   alt={artisan.name || "Artisan"}
