@@ -120,7 +120,7 @@ const FindArtisans = () => {
                       <img
                         src={
                           artisan.image
-                            ? `https://adwumawura-api.onrender.com${artisan.image}`
+                            ? `http://localhost:5000${artisan.image}`
                             : "https://via.placeholder.com/200"
                         }
                         alt={artisan.name || "Artisan"}

@@ -11,7 +11,11 @@ const messageRoutes = require("./routes/messages");
 const app = express();
 
 // Middleware
-app.use(cors({ origin: "https://adwumawura.onrender.com" }));
+app.use(
+  cors({
+    origin: ["https://localhost:5000", "http://localhost:5173"],
+  })
+);
 app.use(express.json());
 
 // Serve static files (for images)

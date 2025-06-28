@@ -35,7 +35,6 @@ const JobApplicants = () => {
   }, []);
 
   const handleAcceptApplicant = (applicantId) => {
-    // Placeholder for accepting applicant (future backend integration)
     console.log(`Accepted applicant ${applicantId} for job ${job.id}`);
     setJobData((prevJob) => ({
       ...prevJob,
